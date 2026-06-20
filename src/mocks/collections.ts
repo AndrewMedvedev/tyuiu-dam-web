@@ -1,0 +1,1 @@
+export { mockCollections } from "./mockData";

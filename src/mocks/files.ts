@@ -1,0 +1,1 @@
+export { mockAssets } from "./mockData";

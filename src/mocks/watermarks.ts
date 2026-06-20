@@ -1,0 +1,1 @@
+export { mockWatermarks } from "./mockData";

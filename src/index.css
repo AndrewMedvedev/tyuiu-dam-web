@@ -1,0 +1,80 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+
+  --color-tiu-50: #eff6ff;
+  --color-tiu-100: #dbeafe;
+  --color-tiu-200: #bfdbfe;
+  --color-tiu-300: #93c5fd;
+  --color-tiu-400: #60a5fa;
+  --color-tiu-500: #3b82f6;
+  --color-tiu-600: #2563eb;
+  --color-tiu-700: #1d4ed8;
+  --color-tiu-800: #1e40af;
+
+  --shadow-glow: 0 20px 70px rgba(47, 125, 255, 0.18);
+}
+
+:root {
+  color: #0f172a;
+  font-family: "Inter", system-ui, sans-serif;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(56, 189, 248, 0.24),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(59, 130, 246, 0.18),
+      transparent 25%
+    ),
+    linear-gradient(180deg, #dbeafe 0%, #93c5fd 45%, #60a5fa 100%);
+  min-height: 100vh;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: transparent;
+  color: #0f172a;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(59, 130, 246, 0.35);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
