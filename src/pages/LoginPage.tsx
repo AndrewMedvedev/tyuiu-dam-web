@@ -2,8 +2,6 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { GlassSurface } from "../components/GlassSurface";
-import { GlassButton } from "../components/GlassButton";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -13,8 +11,8 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     setError(null);
     setLoading(true);
     try {
@@ -28,60 +26,77 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center px-4 py-12">
-      <GlassSurface className="w-full max-w-md p-8">
-        <div className="mb-6 space-y-2 text-center">
-          <p className="text-sm uppercase tracking-[0.3em] text-sky-700">
-            Добро пожаловать
-          </p>
-          <h1 className="text-3xl font-semibold text-slate-950">
+    <div className="flex min-h-[70vh] items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-slate-900 mb-4">
+            <svg
+              width="18"
+              height="18"
+              fill="none"
+              stroke="white"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-semibold text-slate-900">
             Вход в TIU DAM
           </h1>
-          <p className="text-sm text-slate-600">
-            Используйте демо-учетную запись, чтобы исследовать интерфейс.
+          <p className="mt-1 text-sm text-slate-400">
+            Используйте демо-аккаунт для входа
           </p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <label className="block">
-            <span className="text-sm font-medium text-slate-800">Email</span>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">
+              Email
+            </label>
             <input
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               type="email"
-              className="mt-2 w-full rounded-3xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400"
               required
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 transition-colors"
             />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-slate-800">Пароль</span>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">
+              Пароль
+            </label>
             <input
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               type="password"
-              className="mt-2 w-full rounded-3xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400"
               required
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 transition-colors"
             />
-          </label>
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <GlassButton
+          </div>
+          {error && <p className="text-xs text-rose-500">{error}</p>}
+          <button
             type="submit"
-            variant="primary"
-            className="w-full"
             disabled={loading}
+            className="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50 transition-colors mt-2"
           >
-            {loading ? "Входим..." : "Войти"}
-          </GlassButton>
+            {loading ? "Входим…" : "Войти"}
+          </button>
         </form>
-        <p className="mt-6 text-center text-sm text-slate-600">
+
+        <p className="mt-6 text-center text-xs text-slate-400">
           Нет аккаунта?{" "}
           <Link
             to="/register"
-            className="font-semibold text-sky-700 hover:text-sky-900"
+            className="font-semibold text-slate-700 hover:text-slate-900 transition-colors"
           >
             Зарегистрироваться
           </Link>
         </p>
-      </GlassSurface>
+      </div>
     </div>
   );
 }

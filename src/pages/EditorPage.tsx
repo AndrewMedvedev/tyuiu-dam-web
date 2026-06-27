@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   getAssetById,
@@ -7,10 +7,57 @@ import {
   saveWatermarkState,
 } from "../mocks/api";
 import { useAuth } from "../context/AuthContext";
-import { GlassButton } from "../components/GlassButton";
-import { GlassSurface } from "../components/GlassSurface";
 import { LoadingFallback } from "../components/LoadingFallback";
-import { RoleBadge } from "../components/RoleBadge";
+
+function Slider({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  unit = "",
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  onChange: (v: number) => void;
+}) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <div className="group">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-slate-500 uppercase tracking-widest">
+          {label}
+        </span>
+        <span className="text-xs font-semibold text-slate-900 tabular-nums">
+          {typeof value === "number" && !Number.isInteger(value)
+            ? value.toFixed(1)
+            : value}
+          {unit}
+        </span>
+      </div>
+      <div className="relative h-1 rounded-full bg-slate-200">
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-slate-900 transition-all"
+          style={{ width: `${pct}%` }}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="absolute inset-0 w-full opacity-0 cursor-pointer h-4 -top-1.5"
+        />
+      </div>
+    </div>
+  );
+}
 
 export function EditorPage() {
   const { id, fileId } = useParams();
@@ -23,6 +70,10 @@ export function EditorPage() {
   const [saving, setSaving] = useState(false);
   const [state, setState] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState<"image" | "watermark">("image");
+  const [isDragging, setIsDragging] = useState(false);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+
   const [imageFilter, setImageFilter] = useState({
     brightness: 100,
     contrast: 100,
@@ -33,7 +84,6 @@ export function EditorPage() {
     sepia: 0,
     invert: 0,
   });
-  const [editMode, setEditMode] = useState<"watermark" | "image">("image");
 
   useEffect(() => {
     if (!id || !fileId) return;
@@ -51,9 +101,9 @@ export function EditorPage() {
           assetData.watermarkState ?? {
             watermarkId: watermarksData[0]?.id ?? "",
             x: 0.5,
-            y: 0.6,
+            y: 0.5,
             scale: 0.22,
-            opacity: 0.28,
+            opacity: 0.75,
             rotate: 0,
           },
         );
@@ -62,29 +112,49 @@ export function EditorPage() {
       .finally(() => setLoading(false));
   }, [id, fileId]);
 
-  const role = useMemo(() => {
-    return collection?.members.find((member: any) => member.userId === user?.id)
-      ?.role;
-  }, [collection, user]);
-
-  if (loading) {
-    return <LoadingFallback />;
-  }
-
-  if (!collection || !asset || !user) {
-    return (
-      <p className="text-slate-700">Файл не найден или доступ ограничен.</p>
-    );
-  }
+  const role = useMemo(
+    () => collection?.members.find((m: any) => m.userId === user?.id)?.role,
+    [collection, user],
+  );
 
   const canEdit = role === "creator" || role === "moderator";
+
+  const filterStyle = `brightness(${imageFilter.brightness}%) contrast(${imageFilter.contrast}%) saturate(${imageFilter.saturation}%) hue-rotate(${imageFilter.hue}deg) blur(${imageFilter.blur}px) grayscale(${imageFilter.grayscale}%) sepia(${imageFilter.sepia}%) invert(${imageFilter.invert}%)`;
+
+  const getRelativePos = (e: React.MouseEvent | React.TouchEvent) => {
+    const rect = imageContainerRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const clientX =
+      "touches" in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY =
+      "touches" in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    return {
+      x: Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, (clientY - rect.top) / rect.height)),
+    };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (editMode !== "watermark" || !state?.watermarkId) return;
+    setIsDragging(true);
+    const pos = getRelativePos(e);
+    if (pos) setState((prev: any) => ({ ...prev, x: pos.x, y: pos.y }));
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    const pos = getRelativePos(e);
+    if (pos) setState((prev: any) => ({ ...prev, x: pos.x, y: pos.y }));
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
 
   const handleSave = async () => {
     if (!id || !fileId || !state) return;
     setSaving(true);
     setError(null);
     try {
-      await saveWatermarkState(user.id, id, fileId, state);
+      await saveWatermarkState(user!.id, id, fileId, state);
       navigate(`/collections/${id}`);
     } catch (err) {
       setError((err as Error).message);
@@ -93,283 +163,120 @@ export function EditorPage() {
     }
   };
 
+  if (loading) return <LoadingFallback />;
+  if (!collection || !asset || !user)
+    return (
+      <p className="text-slate-500 text-sm">
+        Файл не найден или доступ ограничен.
+      </p>
+    );
+
+  const selectedWatermark = watermarks.find(
+    (wm) => wm.id === state?.watermarkId,
+  );
+
   return (
-    <div className="space-y-8">
-      <GlassSurface className="p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <span className="text-sm uppercase tracking-[0.24em] text-sky-700">
-              Редактор фото
-            </span>
-            <h2 className="mt-2 text-3xl font-semibold text-slate-950">
+    <div className="min-h-screen bg-slate-50">
+      {/* Top bar */}
+      <div className="border-b border-slate-200 bg-white/80 backdrop-blur-sm sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <button
+              onClick={() => navigate(`/collections/${id}`)}
+              className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 transition-colors shrink-0"
+            >
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path d="M19 12H5M12 5l-7 7 7 7" />
+              </svg>
+              Назад
+            </button>
+            <div className="w-px h-4 bg-slate-200" />
+            <span className="text-sm font-semibold text-slate-900 truncate">
               {asset.title}
-            </h2>
+            </span>
           </div>
           <div className="flex items-center gap-3">
-            <RoleBadge role={role || "participant"} />
-            <GlassButton
-              variant="secondary"
-              onClick={() => navigate(`/collections/${id}`)}
+            {error && <span className="text-xs text-rose-500">{error}</span>}
+            <button
+              onClick={handleSave}
+              disabled={saving || !canEdit}
+              className="h-8 px-4 rounded-full bg-slate-900 text-white text-xs font-semibold disabled:opacity-40 hover:bg-slate-700 transition-colors"
             >
-              Назад в коллекцию
-            </GlassButton>
+              {saving ? "Сохранение…" : "Сохранить"}
+            </button>
           </div>
         </div>
-      </GlassSurface>
-      {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+      </div>
+
       {!canEdit ? (
-        <GlassSurface className="p-10 text-center text-slate-700">
-          <h3 className="text-xl font-semibold text-slate-950">
-            Доступ ограничен
-          </h3>
-          <p className="mt-2 text-sm">
-            Редактирование водяного знака доступно только модераторам и
-            создателям.
-          </p>
-        </GlassSurface>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center space-y-2">
+            <p className="text-lg font-semibold text-slate-900">
+              Доступ ограничен
+            </p>
+            <p className="text-sm text-slate-500">
+              Редактирование доступно только модераторам и создателям.
+            </p>
+          </div>
+        </div>
       ) : (
-        <div className="space-y-6">
-          <GlassSurface className="p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:gap-3">
-              <button
-                onClick={() => setEditMode("image")}
-                className={`flex-1 rounded-3xl px-4 py-3 text-sm font-semibold transition ${editMode === "image" ? "bg-sky-600 text-white" : "border border-slate-200 text-slate-700 hover:bg-slate-50"}`}
-              >
-                Редактирование фото
-              </button>
-              <button
-                onClick={() => setEditMode("watermark")}
-                className={`flex-1 rounded-3xl px-4 py-3 text-sm font-semibold transition ${editMode === "watermark" ? "bg-sky-600 text-white" : "border border-slate-200 text-slate-700 hover:bg-slate-50"}`}
-              >
-                Водяной знак
-              </button>
-            </div>
-          </GlassSurface>
-          {editMode === "image" ? (
-            <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-              <GlassSurface className="p-6">
-                <div className="relative overflow-hidden rounded-[28px] bg-slate-950">
-                  <img
-                    src={asset.imageUrl}
-                    alt={asset.title}
-                    className="w-full object-cover"
-                    style={{
-                      filter: `brightness(${imageFilter.brightness}%) contrast(${imageFilter.contrast}%) saturate(${imageFilter.saturation}%)`,
-                    }}
-                  />
-                </div>
-              </GlassSurface>
-              <GlassSurface className="p-6 space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800">
-                      Яркость
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="200"
-                      value={imageFilter.brightness}
-                      onChange={(e) =>
-                        setImageFilter((prev) => ({
-                          ...prev,
-                          brightness: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-3 w-full"
-                    />
-                    <div className="mt-2 text-sm text-slate-600">
-                      {imageFilter.brightness}%
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800">
-                      Контрастность
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="200"
-                      value={imageFilter.contrast}
-                      onChange={(e) =>
-                        setImageFilter((prev) => ({
-                          ...prev,
-                          contrast: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-3 w-full"
-                    />
-                    <div className="mt-2 text-sm text-slate-600">
-                      {imageFilter.contrast}%
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800">
-                      Насыщенность
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="200"
-                      value={imageFilter.saturation}
-                      onChange={(e) =>
-                        setImageFilter((prev) => ({
-                          ...prev,
-                          saturation: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-3 w-full"
-                    />
-                    <div className="mt-2 text-sm text-slate-600">
-                      {imageFilter.saturation}%
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800">
-                      Оттенок (Hue)
-                    </label>
-                    <input
-                      type="range"
-                      min="-180"
-                      max="180"
-                      value={imageFilter.hue}
-                      onChange={(e) =>
-                        setImageFilter((prev) => ({
-                          ...prev,
-                          hue: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-3 w-full"
-                    />
-                    <div className="mt-2 text-sm text-slate-600">
-                      {imageFilter.hue}°
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800">
-                      Размытие (Blur)
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="20"
-                      step="0.1"
-                      value={imageFilter.blur}
-                      onChange={(e) =>
-                        setImageFilter((prev) => ({
-                          ...prev,
-                          blur: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-3 w-full"
-                    />
-                    <div className="mt-2 text-sm text-slate-600">
-                      {imageFilter.blur.toFixed(1)}px
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800">
-                      Серое (Grayscale)
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={imageFilter.grayscale}
-                      onChange={(e) =>
-                        setImageFilter((prev) => ({
-                          ...prev,
-                          grayscale: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-3 w-full"
-                    />
-                    <div className="mt-2 text-sm text-slate-600">
-                      {imageFilter.grayscale}%
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800">
-                      Сепия (Sepia)
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={imageFilter.sepia}
-                      onChange={(e) =>
-                        setImageFilter((prev) => ({
-                          ...prev,
-                          sepia: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-3 w-full"
-                    />
-                    <div className="mt-2 text-sm text-slate-600">
-                      {imageFilter.sepia}%
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800">
-                      Инверсия (Invert)
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={imageFilter.invert}
-                      onChange={(e) =>
-                        setImageFilter((prev) => ({
-                          ...prev,
-                          invert: Number(e.target.value),
-                        }))
-                      }
-                      className="mt-3 w-full"
-                    />
-                    <div className="mt-2 text-sm text-slate-600">
-                      {imageFilter.invert}%
-                    </div>
-                  </div>
-                </div>
-                <GlassButton
-                  onClick={() =>
-                    setImageFilter({
-                      brightness: 100,
-                      contrast: 100,
-                      saturation: 100,
-                      hue: 0,
-                      blur: 0,
-                      grayscale: 0,
-                      sepia: 0,
-                      invert: 0,
-                    })
-                  }
-                  variant="secondary"
+        <div className="max-w-7xl mx-auto flex flex-col xl:flex-row gap-0 min-h-[calc(100vh-56px)]">
+          {/* Canvas area */}
+          <div className="flex-1 flex flex-col">
+            {/* Mode tabs */}
+            <div className="flex gap-1 p-4 border-b border-slate-200 bg-white/50">
+              {(["image", "watermark"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setEditMode(mode)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                    editMode === mode
+                      ? "bg-slate-900 text-white"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
                 >
-                  Сбросить фильтры
-                </GlassButton>
-              </GlassSurface>
+                  {mode === "image" ? "Фото" : "Водяной знак"}
+                </button>
+              ))}
             </div>
-          ) : (
-            <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-              <GlassSurface className="p-6">
-                <div className="relative overflow-hidden rounded-[28px] bg-slate-950">
-                  <img
-                    src={asset.imageUrl}
-                    alt={asset.title}
-                    className="w-full object-cover"
-                    style={{
-                      filter: `brightness(${imageFilter.brightness}%) contrast(${imageFilter.contrast}%) saturate(${imageFilter.saturation}%) hue-rotate(${imageFilter.hue}deg) blur(${imageFilter.blur}px) grayscale(${imageFilter.grayscale}%) sepia(${imageFilter.sepia}%) invert(${imageFilter.invert}%)`,
-                    }}
-                  />
-                  {state?.watermarkId ? (
+
+            {/* Image canvas */}
+            <div className="flex-1 flex items-center justify-center p-6 bg-slate-100">
+              <div
+                ref={imageContainerRef}
+                className={`relative max-w-2xl w-full rounded-2xl overflow-hidden shadow-2xl ${
+                  editMode === "watermark" && state?.watermarkId
+                    ? isDragging
+                      ? "cursor-grabbing"
+                      : "cursor-crosshair"
+                    : ""
+                }`}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+              >
+                <img
+                  src={asset.imageUrl}
+                  alt={asset.title}
+                  className="w-full block select-none"
+                  style={{ filter: filterStyle }}
+                  draggable={false}
+                />
+                {editMode === "watermark" &&
+                  state?.watermarkId &&
+                  selectedWatermark && (
                     <img
-                      src={
-                        watermarks.find((wm) => wm.id === state.watermarkId)
-                          ?.imageUrl
-                      }
-                      alt="Watermark preview"
-                      className="absolute pointer-events-none"
+                      src={selectedWatermark.imageUrl}
+                      alt="Водяной знак"
+                      className="absolute pointer-events-none select-none"
                       style={{
                         left: `${state.x * 100}%`,
                         top: `${state.y * 100}%`,
@@ -377,76 +284,224 @@ export function EditorPage() {
                         opacity: state.opacity,
                         transform: `translate(-50%, -50%) rotate(${state.rotate}deg)`,
                       }}
+                      draggable={false}
                     />
-                  ) : null}
-                </div>
-              </GlassSurface>
-              <GlassSurface className="p-6 space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800">
-                      Выберите водяной знак
-                    </label>
-                    <select
-                      className="mt-3 w-full rounded-3xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-900 outline-none focus:border-sky-400"
-                      value={state?.watermarkId ?? ""}
-                      onChange={(event) =>
-                        setState((prev: any) => ({
-                          ...prev,
-                          watermarkId: event.target.value,
-                        }))
-                      }
-                    >
-                      {watermarks.map((watermark) => (
-                        <option key={watermark.id} value={watermark.id}>
-                          {watermark.name}
-                        </option>
-                      ))}
-                    </select>
+                  )}
+                {editMode === "watermark" && state?.watermarkId && (
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm pointer-events-none">
+                    Кликните или перетащите для позиционирования
                   </div>
-                  <div className="space-y-4">
-                    {["x", "y", "scale", "opacity", "rotate"].map((field) => (
-                      <div key={field}>
-                        <label className="block text-sm font-medium text-slate-800">
-                          {field === "x"
-                            ? "Позиция X"
-                            : field === "y"
-                              ? "Позиция Y"
-                              : field === "scale"
-                                ? "Масштаб"
-                                : field === "opacity"
-                                  ? "Прозрачность"
-                                  : "Угол"}
-                        </label>
-                        <input
-                          type="range"
-                          min={field === "rotate" ? -180 : 0}
-                          max={
-                            field === "rotate" ? 180 : field === "scale" ? 1 : 1
-                          }
-                          step={field === "rotate" ? 1 : 0.01}
-                          value={state?.[field] ?? 0}
-                          onChange={(event) =>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar controls */}
+          <div className="xl:w-72 border-t xl:border-t-0 xl:border-l border-slate-200 bg-white overflow-y-auto">
+            <div className="p-5 space-y-6">
+              {editMode === "image" ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-900 uppercase tracking-widest">
+                      Коррекция
+                    </p>
+                    <button
+                      onClick={() =>
+                        setImageFilter({
+                          brightness: 100,
+                          contrast: 100,
+                          saturation: 100,
+                          hue: 0,
+                          blur: 0,
+                          grayscale: 0,
+                          sepia: 0,
+                          invert: 0,
+                        })
+                      }
+                      className="text-xs text-slate-400 hover:text-slate-700 transition-colors"
+                    >
+                      Сбросить
+                    </button>
+                  </div>
+                  <div className="space-y-5">
+                    <Slider
+                      label="Яркость"
+                      value={imageFilter.brightness}
+                      min={0}
+                      max={200}
+                      unit="%"
+                      onChange={(v) =>
+                        setImageFilter((p) => ({ ...p, brightness: v }))
+                      }
+                    />
+                    <Slider
+                      label="Контраст"
+                      value={imageFilter.contrast}
+                      min={0}
+                      max={200}
+                      unit="%"
+                      onChange={(v) =>
+                        setImageFilter((p) => ({ ...p, contrast: v }))
+                      }
+                    />
+                    <Slider
+                      label="Насыщенность"
+                      value={imageFilter.saturation}
+                      min={0}
+                      max={200}
+                      unit="%"
+                      onChange={(v) =>
+                        setImageFilter((p) => ({ ...p, saturation: v }))
+                      }
+                    />
+                    <Slider
+                      label="Оттенок"
+                      value={imageFilter.hue}
+                      min={-180}
+                      max={180}
+                      unit="°"
+                      onChange={(v) =>
+                        setImageFilter((p) => ({ ...p, hue: v }))
+                      }
+                    />
+                    <div className="h-px bg-slate-100" />
+                    <Slider
+                      label="Размытие"
+                      value={imageFilter.blur}
+                      min={0}
+                      max={20}
+                      step={0.1}
+                      unit="px"
+                      onChange={(v) =>
+                        setImageFilter((p) => ({ ...p, blur: v }))
+                      }
+                    />
+                    <Slider
+                      label="Чёрно-белое"
+                      value={imageFilter.grayscale}
+                      min={0}
+                      max={100}
+                      unit="%"
+                      onChange={(v) =>
+                        setImageFilter((p) => ({ ...p, grayscale: v }))
+                      }
+                    />
+                    <Slider
+                      label="Сепия"
+                      value={imageFilter.sepia}
+                      min={0}
+                      max={100}
+                      unit="%"
+                      onChange={(v) =>
+                        setImageFilter((p) => ({ ...p, sepia: v }))
+                      }
+                    />
+                    <Slider
+                      label="Инверсия"
+                      value={imageFilter.invert}
+                      min={0}
+                      max={100}
+                      unit="%"
+                      onChange={(v) =>
+                        setImageFilter((p) => ({ ...p, invert: v }))
+                      }
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-semibold text-slate-900 uppercase tracking-widest">
+                    Водяной знак
+                  </p>
+
+                  {watermarks.length === 0 ? (
+                    <p className="text-xs text-slate-400">
+                      Нет водяных знаков. Добавьте их в настройках коллекции.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {watermarks.map((wm) => (
+                        <button
+                          key={wm.id}
+                          onClick={() =>
                             setState((prev: any) => ({
                               ...prev,
-                              [field]: Number(event.target.value),
+                              watermarkId: wm.id,
                             }))
                           }
-                          className="mt-3 w-full"
-                        />
-                        <div className="mt-2 text-sm text-slate-600">
-                          {String(state?.[field])}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <GlassButton onClick={handleSave} disabled={saving}>
-                  {saving ? "Сохранение..." : "Сохранить изменения"}
-                </GlassButton>
-              </GlassSurface>
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left ${
+                            state?.watermarkId === wm.id
+                              ? "border-slate-900 bg-slate-50"
+                              : "border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          <img
+                            src={wm.imageUrl}
+                            alt={wm.name}
+                            className="h-8 w-14 object-contain shrink-0"
+                          />
+                          <span className="text-xs font-medium text-slate-800 truncate">
+                            {wm.name}
+                          </span>
+                          {state?.watermarkId === wm.id && (
+                            <svg
+                              className="ml-auto shrink-0"
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                            >
+                              <path d="M20 6L9 17l-5-5" />
+                            </svg>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {state?.watermarkId && (
+                    <div className="space-y-5 pt-2 border-t border-slate-100">
+                      <p className="text-xs font-semibold text-slate-900 uppercase tracking-widest">
+                        Параметры
+                      </p>
+                      <Slider
+                        label="Масштаб"
+                        value={Math.round(state.scale * 100)}
+                        min={5}
+                        max={100}
+                        unit="%"
+                        onChange={(v) =>
+                          setState((p: any) => ({ ...p, scale: v / 100 }))
+                        }
+                      />
+                      <Slider
+                        label="Прозрачность"
+                        value={Math.round(state.opacity * 100)}
+                        min={0}
+                        max={100}
+                        unit="%"
+                        onChange={(v) =>
+                          setState((p: any) => ({ ...p, opacity: v / 100 }))
+                        }
+                      />
+                      <Slider
+                        label="Угол поворота"
+                        value={state.rotate}
+                        min={-180}
+                        max={180}
+                        unit="°"
+                        onChange={(v) =>
+                          setState((p: any) => ({ ...p, rotate: v }))
+                        }
+                      />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

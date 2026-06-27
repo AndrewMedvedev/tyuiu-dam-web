@@ -9,8 +9,6 @@ import {
 } from "../mocks/api";
 import { useAuth } from "../context/AuthContext";
 import { RoleBadge } from "../components/RoleBadge";
-import { GlassButton } from "../components/GlassButton";
-import { GlassSurface } from "../components/GlassSurface";
 import { LoadingFallback } from "../components/LoadingFallback";
 
 const roleOptions = [
@@ -45,21 +43,22 @@ export function CollectionSettingsPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) {
-    return <LoadingFallback />;
-  }
+  if (loading) return <LoadingFallback />;
 
   if (!collection || !user) {
     return (
-      <p className="text-slate-700">
+      <p className="text-sm text-slate-500">
         Коллекция не найдена или доступ ограничен.
       </p>
     );
   }
 
   const currentRole = collection.members.find(
-    (member: any) => member.userId === user.id,
+    (m: any) => m.userId === user.id,
   )?.role;
+  const canManageRoles =
+    currentRole === "creator" || currentRole === "moderator";
+  const isCreator = currentRole === "creator";
 
   const handleRoleChange = async (targetId: string, role: string) => {
     if (!id || !currentRole) return;
@@ -67,10 +66,9 @@ export function CollectionSettingsPage() {
     setError(null);
     try {
       await assignRole(user.id, id, targetId, role as any);
-      const updatedMembers = members.map((member) =>
-        member.id === targetId ? { ...member, role } : member,
+      setMembers((prev) =>
+        prev.map((m) => (m.id === targetId ? { ...m, role } : m)),
       );
-      setMembers(updatedMembers);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -93,7 +91,7 @@ export function CollectionSettingsPage() {
 
   const handleDelete = async () => {
     if (!id) return;
-    if (!window.confirm("Удалить коллекцию? Это действие необратимо.")) return;
+    if (!window.confirm("Удалить коллекцию? Это необратимо.")) return;
     setSaving(true);
     try {
       await deleteCollection(user.id, id);
@@ -105,149 +103,149 @@ export function CollectionSettingsPage() {
     }
   };
 
-  const canManageRoles =
-    currentRole === "creator" || currentRole === "moderator";
-  const isCreator = currentRole === "creator";
-
   return (
-    <div className="space-y-8">
-      <div className="flex gap-3">
-        <GlassButton
-          variant="secondary"
-          onClick={() => navigate(`/collections/${id}`)}
-          className="w-auto"
+    <div className="space-y-6">
+      {/* Breadcrumb */}
+      <button
+        onClick={() => navigate(`/collections/${id}`)}
+        className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 transition-colors"
+      >
+        <svg
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
         >
-          ← Вернуться в коллекцию
-        </GlassButton>
-      </div>
-      <GlassSurface className="p-6">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm uppercase tracking-[0.24em] text-sky-700">
-              Настройки коллекции
-            </span>
-            <RoleBadge role={currentRole} />
-          </div>
-          <h2 className="text-3xl font-semibold text-slate-950">
-            {collection.title}
-          </h2>
-          <p className="text-slate-600">
-            Здесь вы можете переименовать коллекцию и управлять ролями
-            участников.
-          </p>
+          <path d="M19 12H5M12 5l-7 7 7 7" />
+        </svg>
+        {collection.title}
+      </button>
+
+      {/* Header */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+            Настройки
+          </span>
+          <RoleBadge role={currentRole} />
         </div>
-      </GlassSurface>
-      <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <GlassSurface className="p-6">
+        <h1 className="text-2xl font-semibold text-slate-900">
+          {collection.title}
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Управляйте параметрами и участниками коллекции.
+        </p>
+      </div>
+
+      {error && <p className="text-xs text-rose-500">{error}</p>}
+
+      <div className="grid gap-5 xl:grid-cols-[1.3fr_1fr]">
+        {/* Settings panel */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-5">
+          <h2 className="text-sm font-semibold text-slate-900">
+            Параметры коллекции
+          </h2>
           <div className="space-y-4">
-            <h3 className="text-xl font-semibold text-slate-950">
-              Параметры коллекции
-            </h3>
-            <label className="block">
-              <span className="text-sm font-medium text-slate-800">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">
                 Название
-              </span>
+              </label>
               <input
                 value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="mt-2 w-full rounded-3xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-900 outline-none focus:border-sky-400"
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-400 transition-colors"
               />
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium text-slate-800">
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1.5">
                 Описание
-              </span>
+              </label>
               <textarea
                 value={description}
-                onChange={(event) => setDescription(event.target.value)}
+                onChange={(e) => setDescription(e.target.value)}
                 rows={4}
-                className="mt-2 w-full rounded-3xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-900 outline-none focus:border-sky-400"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-400 transition-colors resize-none"
               />
-            </label>
-            <div className="flex flex-wrap gap-3">
-              <GlassButton
-                onClick={handleRename}
-                disabled={!isCreator || saving}
+            </div>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={handleRename}
+              disabled={!isCreator || saving}
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-40 transition-colors"
+            >
+              Сохранить
+            </button>
+            {isCreator && (
+              <button
+                onClick={handleDelete}
+                disabled={saving}
+                className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-40 transition-colors"
               >
-                Сохранить изменения
-              </GlassButton>
-              {isCreator ? (
-                <GlassButton
-                  variant="secondary"
-                  onClick={handleDelete}
-                  disabled={saving}
+                Удалить коллекцию
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Members panel */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-900">Участники</h2>
+            <span className="text-xs text-slate-400">{members.length}</span>
+          </div>
+          <div className="space-y-3">
+            {members.map((member) => {
+              const isActor = member.id === user.id;
+              return (
+                <div
+                  key={member.id}
+                  className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3"
                 >
-                  Удалить коллекцию
-                </GlassButton>
-              ) : null}
-            </div>
-          </div>
-        </GlassSurface>
-        <GlassSurface className="p-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-xl font-semibold text-slate-950">
-                Участники
-              </h3>
-              <span className="text-sm text-slate-500">
-                {members.length} пользователей
-              </span>
-            </div>
-            {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-            <div className="space-y-4">
-              {members.map((member) => {
-                const isActor = member.id === user.id;
-                return (
-                  <div
-                    key={member.id}
-                    className="rounded-3xl border border-slate-200 bg-white/70 p-4"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-slate-900">
-                          {member.name}
-                        </p>
-                        <p className="text-sm text-slate-500">{member.email}</p>
-                      </div>
-                      <RoleBadge role={member.role} />
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">
+                        {member.name}
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">
+                        {member.email}
+                      </p>
                     </div>
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-slate-700">
-                        Роль
-                      </label>
-                      <select
-                        className="mt-2 w-full rounded-3xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-900 outline-none focus:border-sky-400"
-                        value={member.role}
-                        disabled={
-                          !canManageRoles ||
-                          (member.role === "creator" &&
-                            currentRole !== "creator") ||
-                          isActor
-                        }
-                        onChange={(event) =>
-                          handleRoleChange(member.id, event.target.value)
-                        }
-                      >
-                        {roleOptions.map((option) => {
-                          if (
-                            currentRole === "moderator" &&
-                            option.value === "creator"
-                          )
-                            return null;
-                          return (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
+                    <RoleBadge role={member.role} />
                   </div>
-                );
-              })}
-            </div>
+                  <select
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-slate-400 transition-colors"
+                    value={member.role}
+                    disabled={
+                      !canManageRoles ||
+                      (member.role === "creator" &&
+                        currentRole !== "creator") ||
+                      isActor
+                    }
+                    onChange={(e) =>
+                      handleRoleChange(member.id, e.target.value)
+                    }
+                  >
+                    {roleOptions.map((opt) => {
+                      if (
+                        currentRole === "moderator" &&
+                        opt.value === "creator"
+                      )
+                        return null;
+                      return (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              );
+            })}
           </div>
-        </GlassSurface>
+        </div>
       </div>
     </div>
   );
