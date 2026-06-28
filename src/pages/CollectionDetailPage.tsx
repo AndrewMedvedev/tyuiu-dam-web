@@ -37,7 +37,18 @@ export function CollectionDetailPage() {
   }, [id]);
 
   const filteredAssets = useMemo(() => assets, [assets]);
-  const canUpload = role === "creator";
+
+  // Права по ролям
+  // creator — всё
+  // moderator — настройки (переименование, роли), НО не удаление коллекции и не водяные знаки
+  // participant — только просмотр и скачивание
+  const isCreator = role === "creator";
+  const isModerator = role === "moderator";
+  const isParticipant = role === "participant";
+
+  const canUpload = isCreator;
+  const canSeeSettings = isCreator || isModerator;
+  const canSeeWatermarks = isCreator; // модератор НЕ видит раздел водяных знаков
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -145,20 +156,28 @@ export function CollectionDetailPage() {
               ))}
             </div>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={() => navigate(`/collections/${id}/settings`)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              Настройки
-            </button>
-            <button
-              onClick={() => navigate(`/collections/${id}/watermarks`)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              Водяные знаки
-            </button>
-          </div>
+
+          {/* Action buttons — only for creator/moderator */}
+          {(canSeeSettings || canSeeWatermarks) && (
+            <div className="flex gap-2 shrink-0">
+              {canSeeSettings && (
+                <button
+                  onClick={() => navigate(`/collections/${id}/settings`)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Настройки
+                </button>
+              )}
+              {canSeeWatermarks && (
+                <button
+                  onClick={() => navigate(`/collections/${id}/watermarks`)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Водяные знаки
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -167,9 +186,12 @@ export function CollectionDetailPage() {
         <div>
           <h2 className="text-base font-semibold text-slate-900">Галерея</h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Миниатюры, скачивание и редактирование.
+            {isParticipant
+              ? "Просмотр и скачивание изображений."
+              : "Миниатюры, скачивание и редактирование."}
           </p>
         </div>
+
         {canUpload ? (
           <div className="flex flex-col gap-2 sm:flex-row">
             <label className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600 cursor-pointer hover:border-slate-400 hover:bg-slate-100 transition-colors">
@@ -210,9 +232,11 @@ export function CollectionDetailPage() {
             )}
           </div>
         ) : (
-          <p className="text-xs text-slate-400">
-            Загружать может только создатель
-          </p>
+          isParticipant && (
+            <span className="text-xs text-slate-400 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
+              👁 Только просмотр
+            </span>
+          )
         )}
       </div>
 
@@ -243,7 +267,7 @@ export function CollectionDetailPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredAssets.map((asset) => (
-            <AssetCard key={asset.id} asset={asset} />
+            <AssetCard key={asset.id} asset={asset} readOnly={isParticipant} />
           ))}
         </div>
       )}

@@ -28,6 +28,7 @@ export function CollectionSettingsPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -44,7 +45,6 @@ export function CollectionSettingsPage() {
   }, [id]);
 
   if (loading) return <LoadingFallback />;
-
   if (!collection || !user) {
     return (
       <p className="text-sm text-slate-500">
@@ -56,12 +56,25 @@ export function CollectionSettingsPage() {
   const currentRole = collection.members.find(
     (m: any) => m.userId === user.id,
   )?.role;
-  const canManageRoles =
-    currentRole === "creator" || currentRole === "moderator";
+
   const isCreator = currentRole === "creator";
+  const isModerator = currentRole === "moderator";
+
+  // Модератор видит страницу настроек, но НЕ может удалять коллекцию
+  // Модератор может: переименовывать, менять описание, назначать роли (кроме creator)
+  // Создатель — всё включая удаление
+  const canRename = isCreator || isModerator;
+  const canDelete = isCreator;
+  const canManageRoles = isCreator || isModerator;
+
+  // Участник вообще не должен попасть на эту страницу — редиректим
+  if (currentRole === "participant") {
+    navigate(`/collections/${id}`);
+    return null;
+  }
 
   const handleRoleChange = async (targetId: string, role: string) => {
-    if (!id || !currentRole) return;
+    if (!id) return;
     setSaving(true);
     setError(null);
     try {
@@ -69,6 +82,8 @@ export function CollectionSettingsPage() {
       setMembers((prev) =>
         prev.map((m) => (m.id === targetId ? { ...m, role } : m)),
       );
+      setSuccessMsg("Роль обновлена");
+      setTimeout(() => setSuccessMsg(null), 2000);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -79,9 +94,12 @@ export function CollectionSettingsPage() {
   const handleRename = async () => {
     if (!id) return;
     setSaving(true);
+    setError(null);
     try {
       const updated = await renameCollection(user.id, id, title, description);
       setCollection(updated);
+      setSuccessMsg("Сохранено");
+      setTimeout(() => setSuccessMsg(null), 2000);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -98,7 +116,6 @@ export function CollectionSettingsPage() {
       navigate("/collections");
     } catch (err) {
       setError((err as Error).message);
-    } finally {
       setSaving(false);
     }
   };
@@ -135,11 +152,29 @@ export function CollectionSettingsPage() {
           {collection.title}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Управляйте параметрами и участниками коллекции.
+          {isModerator
+            ? "Вы можете редактировать название, описание и управлять ролями участников."
+            : "Управляйте параметрами и участниками коллекции."}
         </p>
       </div>
 
+      {/* Feedback */}
       {error && <p className="text-xs text-rose-500">{error}</p>}
+      {successMsg && (
+        <div className="flex items-center gap-2 text-xs text-green-400">
+          <svg
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            viewBox="0 0 24 24"
+          >
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+          {successMsg}
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[1.3fr_1fr]">
         {/* Settings panel */}
@@ -155,7 +190,8 @@ export function CollectionSettingsPage() {
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-400 transition-colors"
+                disabled={!canRename}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-400 transition-colors disabled:opacity-50"
               />
             </div>
             <div>
@@ -165,20 +201,23 @@ export function CollectionSettingsPage() {
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                disabled={!canRename}
                 rows={4}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-400 transition-colors resize-none"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-400 transition-colors resize-none disabled:opacity-50"
               />
             </div>
           </div>
           <div className="flex gap-3 pt-1">
-            <button
-              onClick={handleRename}
-              disabled={!isCreator || saving}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-40 transition-colors"
-            >
-              Сохранить
-            </button>
-            {isCreator && (
+            {canRename && (
+              <button
+                onClick={handleRename}
+                disabled={saving}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-40 transition-colors"
+              >
+                Сохранить
+              </button>
+            )}
+            {canDelete && (
               <button
                 onClick={handleDelete}
                 disabled={saving}
@@ -188,6 +227,12 @@ export function CollectionSettingsPage() {
               </button>
             )}
           </div>
+          {/* Info for moderator */}
+          {isModerator && (
+            <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
+              Удаление коллекции доступно только создателю.
+            </p>
+          )}
         </div>
 
         {/* Members panel */}
@@ -199,6 +244,12 @@ export function CollectionSettingsPage() {
           <div className="space-y-3">
             {members.map((member) => {
               const isActor = member.id === user.id;
+              // Модератор не может назначать роль "creator" и не может трогать creator'ов
+              const canChangeThisMember =
+                canManageRoles &&
+                !isActor &&
+                !(member.role === "creator" && !isCreator);
+
               return (
                 <div
                   key={member.id}
@@ -216,24 +267,16 @@ export function CollectionSettingsPage() {
                     <RoleBadge role={member.role} />
                   </div>
                   <select
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-slate-400 transition-colors"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-slate-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     value={member.role}
-                    disabled={
-                      !canManageRoles ||
-                      (member.role === "creator" &&
-                        currentRole !== "creator") ||
-                      isActor
-                    }
+                    disabled={!canChangeThisMember || saving}
                     onChange={(e) =>
                       handleRoleChange(member.id, e.target.value)
                     }
                   >
                     {roleOptions.map((opt) => {
-                      if (
-                        currentRole === "moderator" &&
-                        opt.value === "creator"
-                      )
-                        return null;
+                      // Модератор не видит опцию "creator" в select
+                      if (isModerator && opt.value === "creator") return null;
                       return (
                         <option key={opt.value} value={opt.value}>
                           {opt.label}

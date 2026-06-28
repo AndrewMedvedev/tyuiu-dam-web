@@ -5,54 +5,39 @@ import { LoadingFallback } from "./components/LoadingFallback";
 import { useAuth } from "./context/AuthContext";
 
 const LoginPage = lazy(() =>
-  import("./pages/LoginPage").then((module) => ({ default: module.LoginPage })),
+  import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })),
 );
 const RegisterPage = lazy(() =>
-  import("./pages/RegisterPage").then((module) => ({
-    default: module.RegisterPage,
-  })),
+  import("./pages/RegisterPage").then((m) => ({ default: m.RegisterPage })),
 );
 const CollectionsPage = lazy(() =>
-  import("./pages/CollectionsPage").then((module) => ({
-    default: module.CollectionsPage,
+  import("./pages/CollectionsPage").then((m) => ({
+    default: m.CollectionsPage,
   })),
 );
 const CollectionDetailPage = lazy(() =>
-  import("./pages/CollectionDetailPage").then((module) => ({
-    default: module.CollectionDetailPage,
+  import("./pages/CollectionDetailPage").then((m) => ({
+    default: m.CollectionDetailPage,
   })),
 );
 const CollectionSettingsPage = lazy(() =>
-  import("./pages/CollectionSettingsPage").then((module) => ({
-    default: module.CollectionSettingsPage,
+  import("./pages/CollectionSettingsPage").then((m) => ({
+    default: m.CollectionSettingsPage,
   })),
 );
 const WatermarksPage = lazy(() =>
-  import("./pages/WatermarksPage").then((module) => ({
-    default: module.WatermarksPage,
-  })),
+  import("./pages/WatermarksPage").then((m) => ({ default: m.WatermarksPage })),
 );
 const EditorPage = lazy(() =>
-  import("./pages/EditorPage").then((module) => ({
-    default: module.EditorPage,
-  })),
-);
-const ProfilePage = lazy(() =>
-  import("./pages/ProfilePage").then((module) => ({
-    default: module.ProfilePage,
-  })),
+  import("./pages/EditorPage").then((m) => ({ default: m.EditorPage })),
 );
 const NotFoundPage = lazy(() =>
-  import("./pages/NotFoundPage").then((module) => ({
-    default: module.NotFoundPage,
-  })),
+  import("./pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })),
 );
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!user) return <Navigate to="/login" replace />;
   return children;
 }
 
@@ -101,14 +86,6 @@ function App() {
               element={
                 <RequireAuth>
                   <WatermarksPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <RequireAuth>
-                  <ProfilePage />
                 </RequireAuth>
               }
             />
